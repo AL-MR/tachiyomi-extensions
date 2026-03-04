@@ -25,6 +25,7 @@ class Yokai : ZeistManga("Yokai", "https://yokai-team.blogspot.com", "ar") {
             ?.map { chapter ->
                 chapter.apply {
                     chapter_number = parseChapterNumber(name)
+                    name = formatChapterName(name)
                 }
             }
             ?: throw Exception("Failed to parse from chapter API")
@@ -33,12 +34,32 @@ class Yokai : ZeistManga("Yokai", "https://yokai-team.blogspot.com", "ar") {
             SChapter.create().apply {
                 setUrlWithoutDomain(it.attr("href"))
                 val text = it.text().trim()
-                name = text
                 chapter_number = parseChapterNumber(text)
+                name = formatChapterName(text)
             }
         }
 
         return originalList + additionalChapters
+    }
+
+    /**
+     * Reformats Arabic chapter names to include English "Ch." / "Vol." markers
+     * so Mihon's built-in ChapterRecognition parses the correct chapter number
+     * instead of mistaking the volume number for the chapter number.
+     *
+     * "المجلد 37 - الفصل 390" → "Vol.37 Ch.390"
+     * "الفصل 5"               → "Ch.5"
+     * "Chapter 410"            → "Chapter 410" (unchanged)
+     */
+    private fun formatChapterName(originalName: String): String {
+        val chapterNum = CHAPTER_REGEX.find(originalName)?.groupValues?.get(1)
+            ?: return originalName
+        val volumeNum = VOLUME_REGEX.find(originalName)?.groupValues?.get(1)
+        return if (volumeNum != null) {
+            "Vol.$volumeNum Ch.$chapterNum"
+        } else {
+            "Ch.$chapterNum"
+        }
     }
 
     private fun parseChapterNumber(name: String): Float {
@@ -52,6 +73,7 @@ class Yokai : ZeistManga("Yokai", "https://yokai-team.blogspot.com", "ar") {
 
     companion object {
         private val CHAPTER_REGEX = Regex("""الفصل\s+(\d+(?:\.\d+)?)""")
+        private val VOLUME_REGEX = Regex("""المجلد\s+(\d+)""")
         private val FALLBACK_NUMBER_REGEX = Regex("""\d+(?:\.\d+)?""")
     }
 }
